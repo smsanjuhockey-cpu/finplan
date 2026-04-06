@@ -6,21 +6,54 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx --env-file .env.local prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx --env-file .env.local prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
+    "@hookform/resolvers": "^5.2.2",
+    "@prisma/adapter-pg": "^7.6.0",
+    "@prisma/client": "^7.6.0",
+    "@tanstack/react-query": "^5.96.2",
+    "@trpc/client": "^11.13.0",
+    "@trpc/react-query": "^11.13.0",
+    "@trpc/server": "^11.13.0",
+    "@types/pg": "^8.20.0",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "next": "16.2.2",
+    "next-auth": "5.0.0-beta.30",
+    "pg": "^8.20.0",
+    "prisma": "^7.6.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.72.1",
+    "recharts": "^3.8.1",
+    "superjson": "^2.2.6",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.1.2"
   }
 }

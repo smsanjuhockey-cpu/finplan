@@ -1,0 +1,687 @@
+// FinPlan — Complete Database Schema
+// All monetary values stored as BigInt in paise (1 INR = 100 paise)
+// Never store money as Float
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum EmploymentType {
+  salaried
+  self_employed
+  freelancer
+  business_owner
+  retired
+  student
+}
+
+enum TaxRegime {
+  old
+  new
+}
+
+enum AccountType {
+  savings
+  current
+  salary
+  wallet
+  credit_card
+  ppf
+  epf
+  nps
+  fd
+  rd
+  demat
+}
+
+enum TransactionType {
+  income
+  expense
+  transfer
+  investment
+}
+
+enum TransactionDirection {
+  debit
+  credit
+}
+
+enum BudgetPeriod {
+  monthly
+  yearly
+  custom
+}
+
+enum BudgetMethod {
+  custom
+  fifty_thirty_twenty
+  zero_based
+}
+
+enum BudgetBucket {
+  needs
+  wants
+  savings
+  uncategorized
+}
+
+enum RecurringFrequency {
+  daily
+  weekly
+  biweekly
+  monthly
+  quarterly
+  halfyearly
+  yearly
+}
+
+enum InstrumentType {
+  emi
+  sip
+  rd
+  insurance_premium
+  subscription
+  rent
+  salary
+  ppf
+  nps
+  other
+}
+
+enum GoalCategory {
+  emergency_fund
+  home_purchase
+  vehicle
+  vacation
+  education
+  wedding
+  retirement
+  children_education
+  custom
+}
+
+enum GoalStatus {
+  active
+  paused
+  completed
+  abandoned
+}
+
+enum GoalPriority {
+  high
+  medium
+  low
+}
+
+enum AssetType {
+  savings_account
+  fd
+  rd
+  mutual_fund
+  stocks
+  ppf
+  epf
+  nps
+  real_estate
+  gold_physical
+  gold_etf
+  sgb
+  crypto
+  other
+}
+
+enum LiabilityType {
+  home_loan
+  car_loan
+  personal_loan
+  education_loan
+  credit_card
+  gold_loan
+  business_loan
+  other
+}
+
+enum LoanType {
+  reducing_balance
+  interest_only
+  bullet
+  overdraft
+}
+
+enum InsightType {
+  monthly_analysis
+  anomaly
+  forecast
+  suggestion
+  tax_advice
+  goal_recommendation
+}
+
+enum InsightSeverity {
+  info
+  warning
+  success
+  critical
+}
+
+enum LifeEventType {
+  baby_arriving
+  maternity_leave
+  job_change
+  salary_increment
+  bonus_received
+  marriage
+  home_purchase
+  parent_support
+  medical_emergency
+  other
+}
+
+enum DebtStrategy {
+  avalanche
+  snowball
+  custom
+}
+
+enum SyncStatus {
+  manual
+  pending
+  active
+  error
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+// ─── MODELS ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                  String         @id @default(cuid())
+  email               String         @unique
+  emailVerified       DateTime?
+  name                String?
+  avatarUrl           String?
+  hashedPassword      String?
+  panNumber           String?        // encrypted at app layer
+  dateOfBirth         DateTime?
+  annualIncome        BigInt?        // in paise
+  employmentType      EmploymentType @default(salaried)
+  taxRegime           TaxRegime      @default(new)
+  financialYearStart  Int            @default(4) // 4 = April (Indian FY)
+  onboardingCompleted Boolean        @default(false)
+  role                UserRole       @default(user)
+  suspendedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  // Relations
+  accounts           Account[]
+  transactions       Transaction[]
+  categories         TransactionCategory[]
+  budgets            Budget[]
+  recurringRules     RecurringRule[]
+  goals              Goal[]
+  assets             Asset[]
+  liabilities        Liability[]
+  netWorthSnapshots  NetWorthSnapshot[]
+  healthScores       FinancialHealthScore[]
+  aiInsights         AiInsight[]
+  aiChatMessages     AiChatMessage[]
+  taxEntries         TaxPlanningEntry[]
+  debtPayoffPlans    DebtPayoffPlan[]
+  lifeEvents         LifeEvent[]
+
+  @@map("users")
+}
+
+model Account {
+  id                   String      @id @default(cuid())
+  userId               String
+  name                 String
+  accountType          AccountType
+  institutionName      String?
+  accountNumberLast4   String?
+  ifscCode             String?
+  currentBalance       BigInt      @default(0) // in paise
+  currency             String      @default("INR")
+  isActive             Boolean     @default(true)
+  color                String?     // hex color for UI
+  icon                 String?     // emoji or icon key
+  // Bank sync readiness
+  externalAccountId    String?
+  syncProvider         String?
+  lastSyncedAt         DateTime?
+  syncStatus           SyncStatus  @default(manual)
+  metadata             Json        @default("{}")
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  recurringRules RecurringRule[]
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model TransactionCategory {
+  id        String          @id @default(cuid())
+  userId    String?         // null = system default category
+  parentId  String?
+  name      String
+  icon      String?
+  color     String?
+  type      TransactionType
+  isSystem  Boolean         @default(false)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  user         User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent       TransactionCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     TransactionCategory[] @relation("CategoryHierarchy")
+  transactions Transaction[]
+  budgetItems  BudgetCategory[]
+  recurringRules RecurringRule[]
+
+  @@index([userId])
+  @@map("transaction_categories")
+}
+
+model Transaction {
+  id              String               @id @default(cuid())
+  userId          String
+  accountId       String?
+  categoryId      String?
+  recurringRuleId String?
+  type            TransactionType
+  amount          BigInt               // in paise, always positive
+  direction       TransactionDirection
+  description     String
+  notes           String?
+  merchantName    String?
+  date            DateTime
+  // Tax relevance
+  isTaxRelevant   Boolean              @default(false)
+  taxSection      String?              // e.g., '80C', '80D', '24B'
+  // Bank sync readiness
+  externalTxnId   String?
+  isManuallyEntered Boolean            @default(true)
+  // AI metadata
+  isAnomaly       Boolean              @default(false)
+  anomalyScore    Decimal?             @db.Decimal(5, 4)
+  tags            String[]             @default([])
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account       Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category      TransactionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurringRule RecurringRule?       @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+  goalContributions GoalContribution[]
+  taxEntries    TaxPlanningEntry[]
+
+  @@index([userId, date(sort: Desc)])
+  @@index([userId, categoryId, date(sort: Desc)])
+  @@index([accountId, date(sort: Desc)])
+  @@map("transactions")
+}
+
+model Budget {
+  id            String       @id @default(cuid())
+  userId        String
+  name          String
+  periodType    BudgetPeriod
+  startDate     DateTime
+  endDate       DateTime
+  totalAmount   BigInt       // in paise
+  budgetMethod  BudgetMethod @default(custom)
+  // 50/30/20 rule splits (in paise)
+  needsAmount   BigInt?
+  wantsAmount   BigInt?
+  savingsAmount BigInt?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories BudgetCategory[]
+
+  @@index([userId])
+  @@map("budgets")
+}
+
+model BudgetCategory {
+  id              String       @id @default(cuid())
+  budgetId        String
+  categoryId      String
+  allocatedAmount BigInt       // in paise
+  bucket          BudgetBucket @default(uncategorized)
+  sortOrder       Int          @default(0)
+
+  budget   Budget              @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category TransactionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("budget_categories")
+}
+
+model RecurringRule {
+  id            String             @id @default(cuid())
+  userId        String
+  categoryId    String?
+  accountId     String?
+  name          String
+  amount        BigInt             // in paise
+  type          TransactionType
+  frequency     RecurringFrequency
+  instrumentType InstrumentType   @default(other)
+  // EMI-specific
+  loanPrincipal     BigInt?
+  loanInterestRate  Decimal?       @db.Decimal(6, 4)
+  loanTenureMonths  Int?
+  loanOutstanding   BigInt?
+  // SIP-specific
+  sipFolioNumber    String?
+  sipFundName       String?
+  sipExpectedReturn Decimal?       @db.Decimal(6, 4)
+  // Schedule
+  startDate         DateTime
+  endDate           DateTime?
+  dueDayOfMonth     Int?           // 1-31
+  nextDueDate       DateTime
+  lastProcessedDate DateTime?
+  isActive          Boolean        @default(true)
+  autoGenerateTxn   Boolean        @default(true)
+  description       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     TransactionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  account      Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+  goals        Goal[]
+
+  @@index([userId])
+  @@index([nextDueDate])
+  @@map("recurring_rules")
+}
+
+model Goal {
+  id                 String       @id @default(cuid())
+  userId             String
+  name               String
+  description        String?
+  category           GoalCategory @default(custom)
+  targetAmount       BigInt       // in paise
+  currentAmount      BigInt       @default(0) // in paise
+  targetDate         DateTime?
+  priority           GoalPriority @default(medium)
+  linkedSipRuleId    String?
+  expectedReturnRate Decimal?     @db.Decimal(6, 4)
+  status             GoalStatus   @default(active)
+  completedAt        DateTime?
+  icon               String?
+  color              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedSipRule RecurringRule?     @relation(fields: [linkedSipRuleId], references: [id], onDelete: SetNull)
+  contributions GoalContribution[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model GoalContribution {
+  id            String   @id @default(cuid())
+  goalId        String
+  transactionId String?
+  amount        BigInt   // in paise
+  note          String?
+  contributedAt DateTime
+  createdAt     DateTime @default(now())
+
+  goal        Goal         @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([goalId])
+  @@map("goal_contributions")
+}
+
+model Asset {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  assetType       AssetType
+  currentValue    BigInt    // in paise
+  purchaseValue   BigInt?   // in paise
+  purchaseDate    DateTime?
+  // FD-specific
+  fdInterestRate  Decimal?  @db.Decimal(6, 4)
+  fdMaturityDate  DateTime?
+  fdBankName      String?
+  fdMaturityValue BigInt?   // in paise
+  // MF/Stock-specific
+  folioNumber     String?
+  units           Decimal?  @db.Decimal(15, 4)
+  nav             BigInt?   // in paise per unit
+  isin            String?
+  // EPF/PPF/NPS-specific
+  accountNumber   String?
+  nomineeName     String?
+  // Real estate
+  propertyAddress String?
+  // Gold
+  goldGrams       Decimal?  @db.Decimal(10, 3)
+  // General
+  institutionName String?
+  notes           String?
+  isTaxable       Boolean   @default(true)
+  lastUpdatedAt   DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, assetType])
+  @@map("assets")
+}
+
+model Liability {
+  id               String        @id @default(cuid())
+  userId           String
+  name             String
+  liabilityType    LiabilityType
+  loanType         LoanType      @default(reducing_balance)
+  lenderName       String
+  principalAmount  BigInt        // original loan amount, in paise
+  outstandingAmount BigInt       // current balance, in paise
+  interestRate     Decimal       @db.Decimal(6, 4) // annual rate
+  emiAmount        BigInt?       // monthly EMI in paise
+  loanStartDate    DateTime?
+  loanEndDate      DateTime?
+  // Credit card specific
+  creditLimit      BigInt?
+  dueDate          Int?          // day of month
+  minimumDue       BigInt?
+  linkedAccountId  String?
+  notes            String?
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payoffPlans  DebtPayoffPlan[]
+
+  @@index([userId])
+  @@map("liabilities")
+}
+
+model DebtPayoffPlan {
+  id            String       @id @default(cuid())
+  userId        String
+  name          String       @default("My Debt Plan")
+  strategy      DebtStrategy @default(avalanche)
+  monthlyExtra  BigInt       @default(0) // extra payment above EMIs, in paise
+  debtFreeDate  DateTime?    // computed
+  totalInterest BigInt?      // total interest remaining, in paise
+  interestSaved BigInt?      // vs doing nothing, in paise
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  liabilities Liability[]
+  milestones DebtPayoffMilestone[]
+
+  @@index([userId])
+  @@map("debt_payoff_plans")
+}
+
+model DebtPayoffMilestone {
+  id          String   @id @default(cuid())
+  planId      String
+  monthOffset Int      // months from plan start date
+  date        DateTime
+  // Snapshot of all loan balances at this point
+  balances    Json     // { liabilityId: outstandingPaise }
+  totalDebt   BigInt   // in paise
+  interestPaid BigInt  // interest paid this month, in paise
+  principalPaid BigInt // principal paid this month, in paise
+
+  plan DebtPayoffPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("debt_payoff_milestones")
+}
+
+model NetWorthSnapshot {
+  id                   String   @id @default(cuid())
+  userId               String
+  snapshotDate         DateTime
+  totalAssets          BigInt   // in paise
+  totalLiabilities     BigInt   // in paise
+  netWorth             BigInt   // assets - liabilities (can be negative)
+  assetsBreakdown      Json     // assetType → value map
+  liabilitiesBreakdown Json     // liabilityType → value map
+  createdAt            DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotDate])
+  @@index([userId, snapshotDate(sort: Desc)])
+  @@map("net_worth_snapshots")
+}
+
+model FinancialHealthScore {
+  id              String   @id @default(cuid())
+  userId          String
+  scoreDate       DateTime
+  overallScore    Int      // 0-100
+  // Component scores
+  budgetAdherence Int      // 0-100
+  savingsRate     Int      // 0-100
+  emergencyFund   Int      // 0-100
+  debtToIncome    Int      // 0-100
+  goalProgress    Int      // 0-100
+  netWorthGrowth  Int      // 0-100
+  // Context
+  monthlyIncome   BigInt?  // in paise
+  monthlyExpenses BigInt?  // in paise
+  monthlySavings  BigInt?  // in paise
+  insightsJson    Json?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scoreDate])
+  @@index([userId, scoreDate(sort: Desc)])
+  @@map("financial_health_scores")
+}
+
+model AiInsight {
+  id           String          @id @default(cuid())
+  userId       String
+  insightType  InsightType
+  title        String
+  body         String
+  severity     InsightSeverity @default(info)
+  isRead       Boolean         @default(false)
+  isDismissed  Boolean         @default(false)
+  validUntil   DateTime?
+  contextHash  String?         // prevents regenerating for same context
+  createdAt    DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, isDismissed])
+  @@map("ai_insights")
+}
+
+model AiChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String
+  role      String   // 'user' | 'assistant'
+  content   String
+  tokenCount Int?
+  modelUsed String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sessionId, createdAt])
+  @@map("ai_chat_messages")
+}
+
+model TaxPlanningEntry {
+  id                  String   @id @default(cuid())
+  userId              String
+  financialYear       String   // e.g., '2025-26'
+  section             String   // '80C', '80D', '24B', 'HRA', etc.
+  instrument          String   // 'ELSS', 'PPF', 'LIC', etc.
+  amountInvested      BigInt   // in paise
+  maxDeductionLimit   BigInt   // in paise
+  taxSavedOldRegime   BigInt?  // in paise
+  taxSavedNewRegime   BigInt?  // in paise
+  transactionId       String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, financialYear])
+  @@map("tax_planning_entries")
+}
+
+model LifeEvent {
+  id              String        @id @default(cuid())
+  userId          String
+  type            LifeEventType
+  name            String
+  estimatedDate   DateTime
+  financialImpact BigInt?       // monthly impact in paise (positive = income, negative = expense)
+  oneTimeCost     BigInt?       // one-time cost in paise
+  notes           String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("life_events")
+}
