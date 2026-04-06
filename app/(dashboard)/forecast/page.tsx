@@ -201,7 +201,7 @@ export default function ForecastPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v/100000).toFixed(0)}L`} />
-              <Tooltip formatter={(v: number) => `₹${v.toLocaleString('en-IN')}`} />
+              <Tooltip formatter={(v) => typeof v === 'number' ? `₹${v.toLocaleString('en-IN')}` : v} />
               <Area type="monotone" dataKey="Income" stroke="#22c55e" fill="url(#income)" strokeWidth={2} />
               <Area type="monotone" dataKey="Expenses" stroke="#ef4444" fill="url(#expenses)" strokeWidth={2} />
             </AreaChart>
@@ -224,7 +224,7 @@ export default function ForecastPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v/100000).toFixed(0)}L`} />
-              <Tooltip formatter={(v: number) => `₹${v.toLocaleString('en-IN')}`} />
+              <Tooltip formatter={(v) => typeof v === 'number' ? `₹${v.toLocaleString('en-IN')}` : v} />
               <Area type="monotone" dataKey="NetWorth" stroke="#6366f1" fill="url(#nw)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
