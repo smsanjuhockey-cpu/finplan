@@ -257,8 +257,8 @@ Tone: Direct, confident, warm. Like a trusted advisor who knows your numbers and
       : 0
 
     return {
-      name: user?.name,
-      taxRegime: user?.taxRegime,
+      name: user?.name ?? null,
+      taxRegime: user?.taxRegime ?? null,
       income,
       expenses,
       savings,
