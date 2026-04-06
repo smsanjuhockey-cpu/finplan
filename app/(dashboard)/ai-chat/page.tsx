@@ -162,7 +162,16 @@ export default function AiChatPage() {
   const { data: history } = api.ai.getHistory.useQuery({ sessionId }, { enabled: !!sessionId })
 
   const suggestedPrompts = snapshot
-    ? buildSuggestedPrompts(snapshot)
+    ? buildSuggestedPrompts({
+        savingsRate: snapshot.savingsRate,
+        emiToIncomeRatio: snapshot.emiToIncomeRatio,
+        monthsEmergencyFund: snapshot.monthsEmergencyFund,
+        totalDebt: snapshot.totalDebt,
+        activeGoals: snapshot.activeGoals,
+        healthScore: snapshot.healthScore ?? null,
+        taxRegime: snapshot.taxRegime ? String(snapshot.taxRegime) : null,
+        savings: snapshot.savings,
+      })
     : FALLBACK_PROMPTS
 
   const chatMutation = api.ai.chat.useMutation({
