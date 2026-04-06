@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { api } from '@/lib/trpc'
+import { api, type RouterOutputs } from '@/lib/trpc'
 import { formatINR, formatINRCompact } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
@@ -32,7 +32,7 @@ const STATUS_META = {
 
 const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
-type GoalType = NonNullable<ReturnType<typeof api.goals.list.useQuery>['data']>[0]
+type GoalType = RouterOutputs['goals']['list'][0]
 
 function GoalModal({ onClose, editGoal }: { onClose: () => void; editGoal?: GoalType }) {
   const utils = api.useUtils()

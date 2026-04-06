@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { api } from '@/lib/trpc'
+import { api, type RouterOutputs } from '@/lib/trpc'
 import { formatINR, formatINRCompact } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -23,7 +23,7 @@ const EVENT_META: Record<string, { label: string; icon: string }> = {
 
 const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
-type LifeEvent = NonNullable<ReturnType<typeof api.lifeEvents.list.useQuery>['data']>[0]
+type LifeEvent = RouterOutputs['lifeEvents']['list'][0]
 
 function LifeEventModal({ onClose, edit }: { onClose: () => void; edit?: LifeEvent }) {
   const utils = api.useUtils()
