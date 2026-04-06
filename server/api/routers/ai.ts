@@ -24,7 +24,7 @@ async function buildFinancialContext(db: typeof import('@/server/db/client').db,
     db.user.findUnique({ where: { id: userId }, select: { name: true, annualIncome: true, employmentType: true, taxRegime: true } }),
     db.recurringRule.findMany({ where: { userId, isActive: true }, select: { name: true, amount: true, type: true, frequency: true } }),
     db.transaction.groupBy({
-      by: ['category'],
+      by: ['categoryId'],
       where: { userId, type: 'expense', date: { gte: threeMonthsAgo } },
       _sum: { amount: true },
       orderBy: { _sum: { amount: 'desc' } },
@@ -98,7 +98,7 @@ ${goals.length > 0 ? goals.map(g => {
 ${recurringRules.length > 0 ? recurringRules.map(r => `  - ${r.name}: ${paise(r.amount)} ${r.frequency} (${r.type})`).join('\n') : '  - No recurring rules set'}
 
 === TOP SPENDING CATEGORIES (last 3 months) ===
-${recentExpenses.length > 0 ? recentExpenses.map(e => `  - ${e.category ?? 'Uncategorised'}: ${paise(e._sum.amount ?? 0n)}`).join('\n') : '  - No expense data'}
+${recentExpenses.length > 0 ? recentExpenses.map(e => `  - ${e.categoryId ?? 'Uncategorised'}: ${paise(e._sum?.amount ?? 0n)}`).join('\n') : '  - No expense data'}
 
 === FINANCIAL HEALTH SCORE ===
 ${healthScore ? `Overall: ${healthScore.overallScore}/100
