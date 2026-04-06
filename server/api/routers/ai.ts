@@ -258,7 +258,7 @@ Tone: Direct, confident, warm. Like a trusted advisor who knows your numbers and
 
     return {
       name: user?.name ?? null,
-      taxRegime: user?.taxRegime ?? null,
+      taxRegime: user?.taxRegime ? String(user.taxRegime) : null,
       income,
       expenses,
       savings,

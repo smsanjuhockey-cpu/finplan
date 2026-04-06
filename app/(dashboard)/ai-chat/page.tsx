@@ -13,7 +13,7 @@ function buildSuggestedPrompts(snapshot: {
   totalDebt: bigint
   activeGoals: number
   healthScore: number | null
-  taxRegime: string | null
+  taxRegime: string | null | undefined
   savings: bigint
 }) {
   const prompts: string[] = []
