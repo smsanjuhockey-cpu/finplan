@@ -221,4 +221,36 @@ export const transactionsRouter = createTRPCRouter({
 
       return ctx.db.transaction.delete({ where: { id: input.id } })
     }),
+
+  /** Bulk delete transactions */
+  bulkDelete: protectedProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const txns = await ctx.db.transaction.findMany({
+        where: { id: { in: input.ids }, userId: ctx.session.user.id },
+      })
+      if (!txns.length) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      // Reverse account balances in batch
+      const accountDeltas: Record<string, bigint> = {}
+      for (const txn of txns) {
+        if (txn.accountId) {
+          const delta = txn.direction === 'credit' ? -txn.amount : txn.amount
+          accountDeltas[txn.accountId] = (accountDeltas[txn.accountId] ?? 0n) + delta
+        }
+      }
+      await Promise.all(
+        Object.entries(accountDeltas).map(([accountId, delta]) =>
+          ctx.db.account.update({
+            where: { id: accountId },
+            data: { currentBalance: { increment: delta } },
+          })
+        )
+      )
+
+      const result = await ctx.db.transaction.deleteMany({
+        where: { id: { in: input.ids }, userId: ctx.session.user.id },
+      })
+      return { count: result.count }
+    }),
 })

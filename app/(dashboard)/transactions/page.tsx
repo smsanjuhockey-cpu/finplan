@@ -323,6 +323,7 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState<TxType | ''>('')
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const monthStart = new Date(year, month - 1, 1).toISOString()
   const monthEnd = new Date(year, month, 0, 23, 59, 59).toISOString()
@@ -340,21 +341,46 @@ export default function TransactionsPage() {
   const { data: summary } = api.transactions.monthlySummary.useQuery({ month, year })
   const utils = api.useUtils()
 
-  const deleteTxn = api.transactions.delete.useMutation({
+  const invalidate = () => {
+    utils.transactions.invalidate()
+    utils.transactions.monthlySummary.invalidate()
+    utils.accounts.totalBalance.invalidate()
+  }
+
+  const deleteTxn = api.transactions.delete.useMutation({ onSuccess: invalidate })
+  const bulkDelete = api.transactions.bulkDelete.useMutation({
     onSuccess: () => {
-      utils.transactions.list.invalidate()
-      utils.transactions.monthlySummary.invalidate()
-      utils.accounts.totalBalance.invalidate()
+      setSelected(new Set())
+      invalidate()
     },
   })
 
   const transactions = data?.pages.flatMap(p => p.items) ?? []
 
+  const allIds = transactions.map(t => t.id)
+  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
+  const someSelected = selected.size > 0
+
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(allIds))
+  }
+  const toggleOne = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const prevMonth = () => {
+    setSelected(new Set())
     if (month === 1) { setMonth(12); setYear(y => y - 1) }
     else setMonth(m => m - 1)
   }
   const nextMonth = () => {
+    setSelected(new Set())
     if (month === 12) { setMonth(1); setYear(y => y + 1) }
     else setMonth(m => m + 1)
   }
@@ -433,7 +459,7 @@ export default function TransactionsPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-1">
             <button
-              onClick={() => setFilterType('')}
+              onClick={() => { setFilterType(''); setSelected(new Set()) }}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                 filterType === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -444,7 +470,7 @@ export default function TransactionsPage() {
             {(Object.keys(TYPE_META) as TxType[]).map(t => (
               <button
                 key={t}
-                onClick={() => setFilterType(t)}
+                onClick={() => { setFilterType(t); setSelected(new Set()) }}
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize',
                   filterType === t ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -454,7 +480,25 @@ export default function TransactionsPage() {
               </button>
             ))}
           </div>
-          <span className="text-xs text-gray-400">{transactions.length} transactions</span>
+          <div className="flex items-center gap-3">
+            {someSelected && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete ${selected.size} selected transaction${selected.size > 1 ? 's' : ''}? This cannot be undone.`)) {
+                    bulkDelete.mutate({ ids: Array.from(selected) })
+                  }
+                }}
+                disabled={bulkDelete.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                {bulkDelete.isPending ? 'Deleting…' : `Delete ${selected.size}`}
+              </button>
+            )}
+            <span className="text-xs text-gray-400">{transactions.length} transactions</span>
+          </div>
         </div>
 
         {transactions.length === 0 ? (
@@ -465,49 +509,81 @@ export default function TransactionsPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
+            {/* Select all row */}
+            <div className="flex items-center gap-3 py-2 pb-3">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                className="w-4 h-4 rounded accent-indigo-600 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-xs text-gray-500">
+                {allSelected ? 'Deselect all' : `Select all ${transactions.length}`}
+              </span>
+              {someSelected && !allSelected && (
+                <span className="text-xs text-indigo-600 font-medium">{selected.size} selected</span>
+              )}
+            </div>
+
             {transactions.map((txn) => {
               const meta = TYPE_META[txn.type as TxType] ?? TYPE_META.expense
+              const isChecked = selected.has(txn.id)
               return (
-                <div key={txn.id} className="flex items-center justify-between py-3 group">
-                  <div className="flex items-center gap-3">
-                    <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0', meta.bg)}>
-                      {txn.category?.icon ?? '📌'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{txn.description}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-xs text-gray-400">
-                          {new Date(txn.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </span>
-                        {txn.category && (
-                          <>
-                            <span className="text-gray-300">·</span>
-                            <span className="text-xs text-gray-400">{txn.category.name}</span>
-                          </>
-                        )}
-                        {txn.account && (
-                          <>
-                            <span className="text-gray-300">·</span>
-                            <span className="text-xs text-gray-400">{txn.account.icon} {txn.account.name}</span>
-                          </>
-                        )}
-                        {txn.isTaxRelevant && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Tax</span>
-                        )}
-                      </div>
+                <div
+                  key={txn.id}
+                  onClick={() => toggleOne(txn.id)}
+                  className={cn(
+                    'flex items-center gap-3 py-3 cursor-pointer group transition-colors rounded-lg px-2 -mx-2',
+                    isChecked ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOne(txn.id)}
+                    onClick={e => e.stopPropagation()}
+                    className="w-4 h-4 rounded accent-indigo-600 cursor-pointer flex-shrink-0"
+                  />
+                  <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0', meta.bg)}>
+                    {txn.category?.icon ?? '📌'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{txn.description}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs text-gray-400">
+                        {new Date(txn.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                      {txn.category && (
+                        <>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-xs text-gray-400">{txn.category.name}</span>
+                        </>
+                      )}
+                      {txn.account && (
+                        <>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-xs text-gray-400">{txn.account.icon} {txn.account.name}</span>
+                        </>
+                      )}
+                      {txn.isTaxRelevant && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Tax</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     <span className={cn('text-sm font-semibold', meta.color)}>
                       {txn.direction === 'credit' ? '+' : '-'}{formatINR(txn.amount)}
                     </span>
                     <button
-                      onClick={() => {
+                      onClick={e => {
+                        e.stopPropagation()
                         if (confirm('Delete this transaction?')) deleteTxn.mutate({ id: txn.id })
                       }}
-                      className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      Delete
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
                 </div>
