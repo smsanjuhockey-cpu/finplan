@@ -86,9 +86,10 @@ export function BulkUploadModal({ onClose }: BulkUploadModalProps) {
 
   const bulkCreate = api.transactions.bulkCreate.useMutation({
     onSuccess: (data) => {
-      utils.transactions.list.invalidate()
-      utils.transactions.monthlySummary.invalidate()
+      // Invalidate entire transactions namespace so infinite queries with any filters refresh
+      utils.transactions.invalidate()
       utils.accounts.totalBalance.invalidate()
+      utils.assets.invalidate()
       alert(`✅ ${data.count} transactions imported successfully!`)
       onClose()
     },
