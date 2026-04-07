@@ -274,9 +274,19 @@ export default function BudgetPage() {
                           </span>
                           <span className={cn('text-xs font-medium', over ? 'text-red-600' : 'text-gray-400')}>{pct}%</span>
                           <button
-                            onClick={() => removeCategory.mutate({ budgetId: budget.id, categoryId: bc.categoryId })}
-                            className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >✕</button>
+                            onClick={() => {
+                              if (confirm(`Remove "${bc.category.name}" from budget?`)) {
+                                removeCategory.mutate({ budgetId: budget.id, categoryId: bc.categoryId })
+                              }
+                            }}
+                            disabled={removeCategory.isPending}
+                            className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                            title="Remove category"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                       <ProgressBar spent={bc.spent} allocated={bc.allocatedAmount} />

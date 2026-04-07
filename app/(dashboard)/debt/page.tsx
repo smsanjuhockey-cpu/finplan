@@ -48,9 +48,13 @@ export default function DebtPage() {
   const [showAddLoan, setShowAddLoan] = useState(false)
   const [showHowItWorks, setShowHowItWorks] = useState(false)
 
-  const { data: liabilities } = api.liabilities.list.useQuery()
+  const { data: liabilities, refetch: refetchLoans } = api.liabilities.list.useQuery()
   const { data: plan, isLoading } = api.debt.plan.useQuery({ strategy, monthlyExtra: extraPayment })
   const { data: debtSummary } = api.liabilities.totalDebt.useQuery()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const deleteLoan = api.liabilities.delete.useMutation({
+    onSuccess: () => { refetchLoans(); setDeletingId(null) },
+  })
 
   const totalDebt = debtSummary?.total ?? 0n
   const monthlyEmi = debtSummary?.monthlyEmi ?? 0n
@@ -206,12 +210,24 @@ export default function DebtPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
+                    <div className="text-right flex-shrink-0 space-y-1">
                       <p className="font-bold text-gray-900">{formatINR(loan.outstandingAmount)}</p>
                       <p className="text-xs text-gray-500">outstanding</p>
                       {loan.emiAmount && (
-                        <p className="text-xs text-gray-500 mt-0.5">EMI {formatINR(loan.emiAmount)}/mo</p>
+                        <p className="text-xs text-gray-500">EMI {formatINR(loan.emiAmount)}/mo</p>
                       )}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete "${loan.name}"? This cannot be undone.`)) {
+                            setDeletingId(loan.id)
+                            deleteLoan.mutate({ id: loan.id })
+                          }
+                        }}
+                        disabled={deletingId === loan.id}
+                        className="text-xs text-red-500 hover:text-red-700 hover:underline disabled:opacity-40 transition-colors"
+                      >
+                        {deletingId === loan.id ? 'Deleting...' : 'Delete loan'}
+                      </button>
                     </div>
                   </div>
                   {isInterestOnly && (
