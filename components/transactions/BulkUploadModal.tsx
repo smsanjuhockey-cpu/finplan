@@ -52,6 +52,14 @@ function parseCSV(text: string): ParsedRow[] {
     const notes = notesIdx >= 0 ? cols[notesIdx] : undefined
 
     const amount = parseFloat(amountStr.replace(/[₹,\s]/g, ''))
+
+    // Normalise date: support YYYY-MM-DD and DD-MM-YYYY / DD/MM/YYYY
+    let normalisedDate = date
+    const ddmmyyyy = date.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/)
+    if (ddmmyyyy) {
+      normalisedDate = `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,'0')}-${ddmmyyyy[1].padStart(2,'0')}`
+    }
+
     const validTypes = ['income', 'expense', 'investment', 'transfer']
     const type = validTypes.includes(typeRaw) ? typeRaw as ParsedRow['type'] : 'expense'
     const direction: 'credit' | 'debit' = type === 'income' ? 'credit' : 'debit'
@@ -59,7 +67,7 @@ function parseCSV(text: string): ParsedRow[] {
     let _valid = true
     let _error: string | undefined
 
-    if (!date || isNaN(new Date(date).getTime())) {
+    if (!normalisedDate || isNaN(new Date(normalisedDate).getTime())) {
       _valid = false; _error = `Row ${i + 2}: invalid date "${date}"`
     } else if (!description) {
       _valid = false; _error = `Row ${i + 2}: missing description`
@@ -69,7 +77,7 @@ function parseCSV(text: string): ParsedRow[] {
       _error = `Row ${i + 2}: unknown type "${typeRaw}", defaulted to expense`
     }
 
-    return { date, description, amount, type, direction, notes: notes || undefined, _valid, _error }
+    return { date: normalisedDate, description, amount, type, direction, notes: notes || undefined, _valid, _error }
   })
 }
 
